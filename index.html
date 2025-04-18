@@ -4,19 +4,93 @@
   <title>Send ETH</title>
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script src="https://js.dynamic.xyz/latest/dynamic.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 500px;
+      margin: 40px auto;
+      background-color: #121212;
+      color: #f0f0f0;
+    }
+    input, select, button {
+      margin-top: 10px;
+      width: 100%;
+      padding: 10px;
+      background: #1e1e1e;
+      color: #f0f0f0;
+      border: 1px solid #333;
+      border-radius: 6px;
+    }
+    button:hover {
+      background-color: #2a2a2a;
+      cursor: pointer;
+    }
+    #send-section, #tx-history {
+      display: none;
+    }
+    .tx {
+      background: #1d1d1d;
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 6px;
+      font-size: 0.9em;
+      word-break: break-word;
+      border: 1px solid #333;
+    }
+    a {
+      color: #80d8ff;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    label {
+      margin-top: 20px;
+      display: block;
+    }
+  </style>
 </head>
 <body>
-  <h1>Send ETH from Email Wallet</h1>
-  <div id="auth"></div>
-  <p><strong>Wallet:</strong> <span id="wallet"></span></p>
-  <p><strong>Balance:</strong> <span id="balance"></span> ETH</p>
 
-  <input type="text" id="to" placeholder="Recipient Address" />
-  <input type="text" id="amount" placeholder="Amount in ETH" />
-  <button onclick="sendEth()">Send ETH</button>
+  <h2>🔐 Send ETH from Your Wallet</h2>
+
+  <label for="network">Select Network:</label>
+  <select id="network">
+    <option value="ethereum">Ethereum Mainnet</option>
+    <option value="base">Base Mainnet</option>
+  </select>
+
+  <div id="auth"></div>
+
+  <div id="send-section">
+    <p><strong>Wallet:</strong> <span id="wallet"></span></p>
+    <p><strong>Balance:</strong> <span id="balance"></span> ETH</p>
+
+    <input type="text" id="to" placeholder="Recipient Address" />
+    <input type="text" id="amount" placeholder="Amount in ETH" />
+    <button onclick="sendEth()">🚀 Send ETH</button>
+
+    <h3>📜 Last 5 Transactions:</h3>
+    <div id="tx-history"></div>
+  </div>
 
   <script>
     const DYNAMIC_ENV_ID = "env_dev_f28f1547-4f50-46e3-ba44-6a1782bfe13c";
+
+    let provider, signer, selectedChain;
+
+    const networks = {
+      ethereum: {
+        chainId: 1,
+        rpc: "https://rpc.ankr.com/eth",
+        name: "Ethereum Mainnet"
+      },
+      base: {
+        chainId: 8453,
+        rpc: "https://mainnet.base.org",
+        name: "Base Mainnet"
+      }
+    };
 
     window.onload = async () => {
       const dynamic = await Dynamic.init({ environmentId: DYNAMIC_ENV_ID });
@@ -24,26 +98,79 @@
 
       dynamic.on("authenticated", async () => {
         const wallet = await dynamic.getPrimaryWallet();
-        const address = wallet.address;
-        const provider = new ethers.providers.Web3Provider(wallet.connector);
-        const signer = provider.getSigner();
-        const balance = await provider.getBalance(address);
+        signer = new ethers.providers.Web3Provider(wallet.connector).getSigner();
 
-        document.getElementById("wallet").textContent = address;
-        document.getElementById("balance").textContent = ethers.utils.formatEther(balance);
-        window.ethSender = signer;
+        selectedChain = document.getElementById("network").value;
+        await updateNetworkData(signer);
+        document.getElementById("send-section").style.display = "block";
+      });
+
+      document.getElementById("network").addEventListener("change", async () => {
+        if (signer) {
+          selectedChain = document.getElementById("network").value;
+          await updateNetworkData(signer);
+        }
       });
     };
+
+    async function updateNetworkData(signer) {
+      const address = await signer.getAddress();
+      const rpcUrl = networks[selectedChain].rpc;
+
+      provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+      const balance = await provider.getBalance(address);
+
+      document.getElementById("wallet").textContent = address;
+      document.getElementById("balance").textContent = ethers.utils.formatEther(balance);
+
+      await fetchTxHistory(address);
+    }
+
+    async function fetchTxHistory(address) {
+      const rpcUrl = networks[selectedChain].rpc;
+      const txContainer = document.getElementById("tx-history");
+      txContainer.style.display = "block";
+      txContainer.innerHTML = "Loading transactions...";
+
+      try {
+        const apiUrl = selectedChain === "base"
+          ? `https://api.basescan.org/api?module=account&action=txlist&address=${address}&sort=desc`
+          : `https://api.etherscan.io/api?module=account&action=txlist&address=${address}&sort=desc`;
+
+        const response = await fetch(apiUrl);
+        const data = await response.json();
+        const txs = data.result.slice(0, 5);
+
+        txContainer.innerHTML = txs.map(tx => `
+          <div class="tx">
+            <div><strong>Hash:</strong> <a href="${selectedChain === "base" ? "https://basescan.org" : "https://etherscan.io"}/tx/${tx.hash}" target="_blank">${tx.hash.slice(0, 20)}...</a></div>
+            <div><strong>To:</strong> ${tx.to}</div>
+            <div><strong>Value:</strong> ${ethers.utils.formatEther(tx.value)} ETH</div>
+          </div>
+        `).join('');
+      } catch (e) {
+        txContainer.innerHTML = "⚠️ Error fetching transactions.";
+        console.error(e);
+      }
+    }
 
     async function sendEth() {
       const to = document.getElementById("to").value;
       const amount = document.getElementById("amount").value;
-      const tx = await window.ethSender.sendTransaction({
+
+      if (!to || !amount) {
+        alert("Please fill in both fields.");
+        return;
+      }
+
+      const tx = await signer.sendTransaction({
         to,
         value: ethers.utils.parseEther(amount)
       });
+
       await tx.wait();
-      alert("Transaction complete!");
+      alert("✅ Transaction complete!");
+      await updateNetworkData(signer);
     }
   </script>
 </body>
