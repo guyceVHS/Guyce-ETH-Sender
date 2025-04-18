@@ -12,6 +12,7 @@
       background-color: #121212;
       color: #f0f0f0;
     }
+
     input, select, button {
       margin-top: 10px;
       width: 100%;
@@ -21,13 +22,16 @@
       border: 1px solid #333;
       border-radius: 6px;
     }
+
     button:hover {
       background-color: #2a2a2a;
       cursor: pointer;
     }
+
     #send-section, #tx-history {
       display: none;
     }
+
     .tx {
       background: #1d1d1d;
       padding: 10px;
@@ -37,27 +41,45 @@
       word-break: break-word;
       border: 1px solid #333;
     }
+
     a {
       color: #80d8ff;
       text-decoration: none;
     }
+
     a:hover {
       text-decoration: underline;
     }
+
     label {
       margin-top: 20px;
       display: block;
     }
 
-    /* Enhanced Login Widget Styling */
-    #auth {
-      display: flex;
-      justify-content: center;
+    #login-container {
+      background-color: #1f1f1f;
+      padding: 30px;
       margin: 30px 0;
-      padding: 20px;
-      background-color: #1d1d1d;
-      border-radius: 10px;
+      border-radius: 12px;
       border: 1px solid #333;
+      text-align: center;
+    }
+
+    #auth iframe {
+      max-width: 100% !important;
+    }
+
+    #auth button, #auth input {
+      background: #2a2a2a !important;
+      color: #f0f0f0 !important;
+      border: 1px solid #444 !important;
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 1rem;
+    }
+
+    #auth input::placeholder {
+      color: #aaa;
     }
   </style>
 </head>
@@ -71,8 +93,10 @@
     <option value="base">Base Mainnet</option>
   </select>
 
-  <h3 style="text-align:center;">🔐 Please log in to access your wallet</h3>
-  <div id="auth"></div>
+  <div id="login-container">
+    <h3>🔐 Log in to your wallet</h3>
+    <div id="auth"></div>
+  </div>
 
   <div id="send-section">
     <p><strong>Wallet:</strong> <span id="wallet"></span></p>
@@ -105,7 +129,11 @@
     };
 
     window.onload = async () => {
-      const dynamic = await Dynamic.init({ environmentId: DYNAMIC_ENV_ID });
+      const dynamic = await Dynamic.init({
+        environmentId: DYNAMIC_ENV_ID,
+        walletConnectors: ["google", "email_password"]
+      });
+
       dynamic.renderAuthButton(document.getElementById("auth"));
 
       dynamic.on("authenticated", async () => {
