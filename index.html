@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Send ETH</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script src="https://js.dynamic.xyz/latest/dynamic.js"></script>
+</head>
+<body>
+  <h1>Send ETH from Email Wallet</h1>
+  <div id="auth"></div>
+  <p><strong>Wallet:</strong> <span id="wallet"></span></p>
+  <p><strong>Balance:</strong> <span id="balance"></span> ETH</p>
+
+  <input type="text" id="to" placeholder="Recipient Address" />
+  <input type="text" id="amount" placeholder="Amount in ETH" />
+  <button onclick="sendEth()">Send ETH</button>
+
+  <script>
+    const DYNAMIC_ENV_ID = "env_dev_f28f1547-4f50-46e3-ba44-6a1782bfe13c";
+
+    window.onload = async () => {
+      const dynamic = await Dynamic.init({ environmentId: DYNAMIC_ENV_ID });
+      dynamic.renderAuthButton(document.getElementById("auth"));
+
+      dynamic.on("authenticated", async () => {
+        const wallet = await dynamic.getPrimaryWallet();
+        const address = wallet.address;
+        const provider = new ethers.providers.Web3Provider(wallet.connector);
+        const signer = provider.getSigner();
+        const balance = await provider.getBalance(address);
+
+        document.getElementById("wallet").textContent = address;
+        document.getElementById("balance").textContent = ethers.utils.formatEther(balance);
+        window.ethSender = signer;
+      });
+    };
+
+    async function sendEth() {
+      const to = document.getElementById("to").value;
+      const amount = document.getElementById("amount").value;
+      const tx = await window.ethSender.sendTransaction({
+        to,
+        value: ethers.utils.parseEther(amount)
+      });
+      await tx.wait();
+      alert("Transaction complete!");
+    }
+  </script>
+</body>
+</html>
